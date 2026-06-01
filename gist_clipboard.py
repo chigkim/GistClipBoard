@@ -91,7 +91,28 @@ def fetch_gist_content(gist_id: str) -> str:
 
 
 def copy_to_clipboard(text: str) -> None:
-    """Copy text to the local clipboard using stdlib first, shell fallback second."""
+    """Copy text to the local clipboard using native OS tools when available."""
+    # On Windows, tkinter's clipboard can appear to succeed but lose ownership when
+    # the short-lived process exits, leaving the clipboard empty. Prefer the native
+    # clipboard command there.
+    if sys.platform.startswith("win"):
+        subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
+            ],
+            input=text,
+            text=True,
+            check=True,
+        )
+        return
+
+    if sys.platform == "darwin":
+        subprocess.run(["pbcopy"], input=text, text=True, check=True)
+        return
+
     try:
         import tkinter as tk
 
@@ -104,14 +125,6 @@ def copy_to_clipboard(text: str) -> None:
         return
     except Exception:
         pass
-
-    if sys.platform.startswith("win"):
-        subprocess.run(["clip"], input=text, text=True, check=True)
-        return
-
-    if sys.platform == "darwin":
-        subprocess.run(["pbcopy"], input=text, text=True, check=True)
-        return
 
     raise RuntimeError(
         "Could not access the clipboard with stdlib tools on this platform. "
